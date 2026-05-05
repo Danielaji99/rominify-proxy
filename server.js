@@ -37,21 +37,23 @@ app.use(express.json({ limit: "50kb" })); // Hard cap on request size
 // CORS — only allow requests from Chrome extensions
 // Chrome extensions send requests with origin: "chrome-extension://<id>"
 // During development we also allow null origin (Postman/curl testing)
-app.use(cors({
-  origin: (origin, callback) => {
-    if (
-      !origin ||
-      origin.startsWith("chrome-extension://") ||
-      origin === "null"
-    ) {
-      callback(null, true);
-    } else {
-      callback(new Error("CORS: Origin not allowed"));
-    }
-  },
-  methods: ["POST"],
-  allowedHeaders: ["Content-Type"]
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (
+        !origin ||
+        origin.startsWith("chrome-extension://") ||
+        origin === "null"
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS: Origin not allowed"));
+      }
+    },
+    methods: ["POST"],
+    allowedHeaders: ["Content-Type"],
+  }),
+);
 
 // Rate limiter — 10 requests per IP per hour
 const limiter = rateLimit({
@@ -61,8 +63,9 @@ const limiter = rateLimit({
   legacyHeaders: false,
   message: {
     error: "RATE_LIMITED",
-    message: "You have made too many requests. Please wait an hour and try again."
-  }
+    message:
+      "You have made too many requests. Please wait an hour and try again.",
+  },
 });
 
 app.use("/summarize", limiter);
@@ -83,7 +86,7 @@ app.post("/summarize", async (req, res) => {
   if (!content || typeof content !== "string" || content.trim().length < 100) {
     return res.status(400).json({
       error: "INVALID_INPUT",
-      message: "Not enough content to summarize."
+      message: "Not enough content to summarize.",
     });
   }
 
@@ -91,7 +94,8 @@ app.post("/summarize", async (req, res) => {
     console.error("[Rominify] GEMINI_API_KEY is not set in environment.");
     return res.status(500).json({
       error: "SERVER_MISCONFIGURED",
-      message: "The server is not configured correctly. Contact the administrator."
+      message:
+        "The server is not configured correctly. Contact the administrator.",
     });
   }
 
@@ -99,16 +103,15 @@ app.post("/summarize", async (req, res) => {
     const summary = await callGeminiAPI(
       process.env.GEMINI_API_KEY,
       title || "Untitled",
-      content
+      content,
     );
 
     res.json({ success: true, data: summary });
-
   } catch (err) {
     console.error("[Rominify] Gemini error:", err.message);
     res.status(502).json({
       error: "UPSTREAM_ERROR",
-      message: err.message || "Failed to get a response from Gemini."
+      message: err.message || "Failed to get a response from Gemini.",
     });
   }
 });
@@ -119,7 +122,7 @@ async function callGeminiAPI(apiKey, title, content) {
   const trimmedContent = content.slice(0, 12000);
   const prompt = buildPrompt(title, trimmedContent);
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
   const response = await fetch(endpoint, {
     method: "POST",
@@ -128,9 +131,9 @@ async function callGeminiAPI(apiKey, title, content) {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens: 1024
-      }
-    })
+        maxOutputTokens: 1024,
+      },
+    }),
   });
 
   if (!response.ok) {
@@ -199,17 +202,18 @@ function parseGeminiResponse(rawText, originalContent) {
   const keyPointsRaw = extract("KEY_POINTS", rawText);
   const keyPoints = keyPointsRaw
     .split("\n")
-    .map(line => line.replace(/^[-•*]\s*/, "").trim())
-    .filter(line => line && line !== "N/A");
+    .map((line) => line.replace(/^[-•*]\s*/, "").trim())
+    .filter((line) => line && line !== "N/A");
 
   const readingTimeRaw = extract("READING_TIME", rawText);
-  const readingTime = parseInt(readingTimeRaw, 10) || estimateReadingTime(originalContent);
+  const readingTime =
+    parseInt(readingTimeRaw, 10) || estimateReadingTime(originalContent);
 
   const topicsRaw = extract("TOPICS", rawText);
   const topics = topicsRaw
     .split(",")
-    .map(t => t.trim().toLowerCase())
-    .filter(t => t && t !== "none");
+    .map((t) => t.trim().toLowerCase())
+    .filter((t) => t && t !== "none");
 
   return { summary, keyPoints, readingTime, topics, generatedAt: Date.now() };
 }
